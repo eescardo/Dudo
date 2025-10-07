@@ -29,8 +29,18 @@ const PRIV_CH = (roomId: string, pid: string) =>
   `room:${roomId}:private:${pid}`;
 
 export async function loadState(roomId: string): Promise<FullState | null> {
-  const s = await r.get<string>(STATE_KEY(roomId));
-  return s ? (JSON.parse(s) as FullState) : null;
+  const value = await r.get(STATE_KEY(roomId));
+  if (!value) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as FullState;
+    } catch {
+      // If parsing fails, return null to avoid crashing the SSE stream
+      return null;
+    }
+  }
+  // Some clients may return a parsed object already
+  return value as FullState;
 }
 export async function saveState(roomId: string, S: FullState) {
   await r.set(STATE_KEY(roomId), JSON.stringify(S));
