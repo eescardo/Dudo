@@ -4,9 +4,11 @@ import { useState } from 'react';
 export function BidForm({
   onSubmit,
   minQty = 1,
+  activePlayer = false,
 }: {
   onSubmit: (qty: number, face: number) => void;
   minQty?: number;
+  activePlayer?: boolean;
 }) {
   const [qty, setQty] = useState(minQty);
   const [face, setFace] = useState(2);
@@ -21,18 +23,20 @@ export function BidForm({
       <label className="flex flex-col text-sm">
         Qty
         <input
-          className="border p-1 w-16"
+          className="border p-1 w-16 disabled:bg-gray-100 disabled:cursor-not-allowed"
           type="number"
           min={minQty}
           value={qty}
+          disabled={!activePlayer}
           onChange={(e) => setQty(parseInt(e.target.value || '1'))}
         />
       </label>
       <label className="flex flex-col text-sm">
         Face
         <select
-          className="border p-1"
+          className="border p-1 disabled:bg-gray-100 disabled:cursor-not-allowed"
           value={face}
+          disabled={!activePlayer}
           onChange={(e) => setFace(parseInt(e.target.value))}
         >
           {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -42,7 +46,12 @@ export function BidForm({
           ))}
         </select>
       </label>
-      <button className="border px-3 py-1">Bid</button>
+      <button
+        className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+        disabled={!activePlayer}
+      >
+        Bid
+      </button>
     </form>
   );
 }

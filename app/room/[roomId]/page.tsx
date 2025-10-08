@@ -83,6 +83,11 @@ export default function Room({ params }: { params: { roomId: string } }) {
     [pub, playerId]
   );
 
+  const isMyTurn = useMemo(
+    () => pub?.currentTurn === playerId,
+    [pub?.currentTurn, playerId]
+  );
+
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4">
       <h1 className="text-2xl font-semibold">Cachito — Room {roomId}</h1>
@@ -144,15 +149,23 @@ export default function Room({ params }: { params: { roomId: string } }) {
             <button className="border px-3 py-1" onClick={start}>
               Start / Next Round
             </button>
-            <button className="border px-3 py-1" onClick={dudo}>
+            <button
+              className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+              onClick={dudo}
+              disabled={!isMyTurn}
+            >
               Dudo
             </button>
-            <button className="border px-3 py-1" onClick={calza}>
+            <button
+              className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+              onClick={calza}
+              disabled={!isMyTurn}
+            >
               Calza
             </button>
           </div>
 
-          <BidForm onSubmit={bid} />
+          <BidForm onSubmit={bid} activePlayer={isMyTurn} />
         </>
       )}
     </div>
