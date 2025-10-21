@@ -49,6 +49,7 @@ export const ScrollableDial = forwardRef<HTMLDivElement, ScrollableDialProps>(
     const handleTouchStart = (e: React.TouchEvent) => {
       if (disabled) return;
       e.preventDefault();
+      e.stopPropagation();
 
       const touch = e.touches[0];
       setIsDragging(true);
@@ -67,6 +68,7 @@ export const ScrollableDial = forwardRef<HTMLDivElement, ScrollableDialProps>(
     const handleTouchMove = (e: React.TouchEvent) => {
       if (disabled || !isDragging || !dragStartRef.current) return;
       e.preventDefault();
+      e.stopPropagation();
 
       const touch = e.touches[0];
       const deltaY = dragStartRef.current.y - touch.clientY; // Inverted: drag up = increase value
@@ -88,7 +90,10 @@ export const ScrollableDial = forwardRef<HTMLDivElement, ScrollableDialProps>(
       }
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
       setIsDragging(false);
       dragStartRef.current = null;
 
@@ -231,13 +236,38 @@ export const ScrollableDial = forwardRef<HTMLDivElement, ScrollableDialProps>(
         }
       };
 
+      // Add global touch event listeners to prevent page scrolling
+      const handleGlobalTouchMove = (e: TouchEvent) => {
+        if (isDragging) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleTouchMove(e as any);
+        }
+      };
+
+      const handleGlobalTouchEnd = (e: TouchEvent) => {
+        if (isDragging) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleTouchEnd(e as any);
+        }
+      };
+
       document.addEventListener('mousemove', handleGlobalMouseMove);
       document.addEventListener('mouseup', handleGlobalMouseUp);
+      document.addEventListener('touchmove', handleGlobalTouchMove, {
+        passive: false,
+      });
+      document.addEventListener('touchend', handleGlobalTouchEnd, {
+        passive: false,
+      });
 
       return () => {
         dial.removeEventListener('wheel', handleWheel);
         document.removeEventListener('mousemove', handleGlobalMouseMove);
         document.removeEventListener('mouseup', handleGlobalMouseUp);
+        document.removeEventListener('touchmove', handleGlobalTouchMove);
+        document.removeEventListener('touchend', handleGlobalTouchEnd);
         if (scrollTimeoutRef.current) {
           clearTimeout(scrollTimeoutRef.current);
         }
@@ -260,20 +290,22 @@ export const ScrollableDial = forwardRef<HTMLDivElement, ScrollableDialProps>(
           }}
           tabIndex={disabled ? -1 : 0}
           className={`
-          relative w-16 h-20 border-2 rounded-lg 
-          flex items-center justify-center
-          bg-white cursor-pointer
-          transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-          select-none
-          ${
-            disabled
-              ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
-              : 'border-gray-400 hover:border-gray-500 hover:shadow-sm'
-          }
-          ${isFocused ? 'ring-2 ring-blue-500 border-blue-500' : ''}
-          ${isDragging ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50' : ''}
-        `}
+            relative w-16 h-20 border-2 rounded-lg
+            flex items-center justify-center
+            bg-white cursor-pointer
+            transition-all duration-150
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+            select-none
+            touch-none
+            ${
+              disabled
+                ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
+                : 'border-gray-400 hover:border-gray-500 hover:shadow-sm'
+            }
+            ${isFocused ? 'ring-2 ring-blue-500 border-blue-500' : ''}
+            ${isDragging ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50' : ''}
+          `}
+          style={{ touchAction: 'none' }}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
