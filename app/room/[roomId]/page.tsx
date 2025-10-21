@@ -1,13 +1,21 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { Dice } from '@/components/Dice';
 import { BidForm } from '@/components/BidForm';
 import { DiceFace } from '@/components/DiceFace';
 
-function usePlayer(roomId: string) {
+function usePlayer(roomId: string, urlPlayerId?: string | null) {
   const [playerId, setPid] = useState<string>('');
   useEffect(() => {
+    // If playerId is provided in URL (from waiting room), use it
+    if (urlPlayerId) {
+      setPid(urlPlayerId);
+      return;
+    }
+
+    // Otherwise, use localStorage to persist playerId for this room
     const key = `cachito:${roomId}:pid`;
     let pid = localStorage.getItem(key);
     if (!pid) {
@@ -15,13 +23,15 @@ function usePlayer(roomId: string) {
       localStorage.setItem(key, pid);
     }
     setPid(pid);
-  }, [roomId]);
+  }, [roomId, urlPlayerId]);
   return playerId;
 }
 
 export default function Room({ params }: { params: { roomId: string } }) {
   const roomId = params.roomId;
-  const playerId = usePlayer(roomId);
+  const searchParams = useSearchParams();
+  const urlPlayerId = searchParams.get('playerId');
+  const playerId = usePlayer(roomId, urlPlayerId);
   const [name, setName] = useState('');
   const [joined, setJoined] = useState(false);
   const [pub, setPub] = useState<any>(null);
@@ -65,6 +75,30 @@ export default function Room({ params }: { params: { roomId: string } }) {
     await call({ type: 'join', playerId, name: name.trim() });
     setJoined(true);
   };
+
+  // Auto-join if player name is provided in URL
+  useEffect(() => {
+    const urlPlayerName = searchParams.get('playerName');
+    if (urlPlayerName && playerId && !joined) {
+      setName(urlPlayerName);
+      // Auto-join after a short delay to ensure everything is ready
+      setTimeout(() => {
+        join();
+      }, 100);
+    }
+  }, [playerId, searchParams, joined]);
+
+  // Check if player is already in the game state (from waiting room)
+  useEffect(() => {
+    if (pub && playerId && !joined) {
+      const existingPlayer = pub.players.find((p: any) => p.id === playerId);
+      if (existingPlayer) {
+        // Player is already in the game, mark as joined
+        setJoined(true);
+        setName(existingPlayer.name);
+      }
+    }
+  }, [pub, playerId, joined]);
 
   const start = async () => {
     await call({ type: 'start', playerId });
