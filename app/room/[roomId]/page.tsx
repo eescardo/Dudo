@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Dice } from '@/components/Dice';
 import { BidForm } from '@/components/BidForm';
+import { DiceFace } from '@/components/DiceFace';
 
 function usePlayer(roomId: string) {
   const [playerId, setPid] = useState<string>('');
@@ -88,6 +89,36 @@ export default function Room({ params }: { params: { roomId: string } }) {
     [pub?.currentTurn, playerId]
   );
 
+  const formatBid = (bid: any) => {
+    if (!bid) return '—';
+    return (
+      <span className="flex items-center gap-1">
+        <span>{bid.qty}×</span>
+        <DiceFace value={bid.face} size={20} />
+      </span>
+    );
+  };
+
+  const formatLastAction = (action: string) => {
+    if (!action) return '—';
+
+    // Parse bid format like "bid:3x4" or "dudo:bidder_loses:2" or "calza:exact:3"
+    const bidMatch = action.match(/bid:(\d+)x(\d+)/);
+    if (bidMatch) {
+      const [, qty, face] = bidMatch;
+      return (
+        <span className="flex items-center gap-1">
+          <span>Bid:</span>
+          <span>{qty}×</span>
+          <DiceFace value={parseInt(face) as 1 | 2 | 3 | 4 | 5 | 6} size={20} />
+        </span>
+      );
+    }
+
+    // For other actions, show as text
+    return action;
+  };
+
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4">
       <h1 className="text-2xl font-semibold">Cachito — Room {roomId}</h1>
@@ -115,14 +146,13 @@ export default function Room({ params }: { params: { roomId: string } }) {
             <div>
               Phase: <b>{pub.phase}</b> · Round: {pub.round}
             </div>
-            <div>
-              Current bid:{' '}
-              {pub.currentBid
-                ? `${pub.currentBid.qty}×${pub.currentBid.face}`
-                : '—'}
+            <div className="flex items-center gap-2">
+              Current bid: {formatBid(pub.currentBid)}
             </div>
             <div>Turn: {pub.currentTurn}</div>
-            <div>Last: {pub.lastAction || '—'}</div>
+            <div className="flex items-center gap-2">
+              Last: {formatLastAction(pub.lastAction)}
+            </div>
           </div>
 
           <div className="border p-3 rounded">
@@ -146,18 +176,21 @@ export default function Room({ params }: { params: { roomId: string } }) {
           </div>
 
           <div className="flex gap-3 items-center">
-            <button className="border px-3 py-1" onClick={start}>
+            <button
+              className="border px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onClick={start}
+            >
               Start / Next Round
             </button>
             <button
-              className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+              className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={dudo}
               disabled={!isMyTurn}
             >
               Dudo
             </button>
             <button
-              className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+              className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={calza}
               disabled={!isMyTurn}
             >
@@ -165,7 +198,14 @@ export default function Room({ params }: { params: { roomId: string } }) {
             </button>
           </div>
 
-          <BidForm onSubmit={bid} activePlayer={isMyTurn} />
+          <BidForm
+            onSubmit={bid}
+            activePlayer={isMyTurn}
+            maxQty={pub.players.reduce(
+              (total: number, p: any) => total + p.diceCount,
+              0
+            )}
+          />
         </>
       )}
     </div>

@@ -1,16 +1,17 @@
 'use client';
 import React from 'react';
+import { DiceFace } from './DiceFace';
 
 export function Dice({ dice }: { dice: number[] }) {
   return (
     <div className="flex gap-2">
       {dice.map((d, i) => (
-        <span
+        <DiceFace
           key={i}
-          className="inline-flex h-8 w-8 items-center justify-center rounded border text-lg"
-        >
-          {d}
-        </span>
+          value={d as 1 | 2 | 3 | 4 | 5 | 6}
+          size={32}
+          className="drop-shadow-sm"
+        />
       ))}
     </div>
   );
