@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { Dice } from '@/components/Dice';
@@ -27,7 +27,7 @@ function usePlayer(roomId: string, urlPlayerId?: string | null) {
   return playerId;
 }
 
-export default function Room({ params }: { params: { roomId: string } }) {
+function RoomContent({ params }: { params: { roomId: string } }) {
   const roomId = params.roomId;
   const searchParams = useSearchParams();
   const urlPlayerId = searchParams.get('playerId');
@@ -243,5 +243,24 @@ export default function Room({ params }: { params: { roomId: string } }) {
         </>
       )}
     </div>
+  );
+}
+
+export default function Room({ params }: { params: { roomId: string } }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-4 max-w-3xl mx-auto space-y-4">
+          <h1 className="text-2xl font-semibold">
+            Cachito — Room {params.roomId}
+          </h1>
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+      }
+    >
+      <RoomContent params={params} />
+    </Suspense>
   );
 }

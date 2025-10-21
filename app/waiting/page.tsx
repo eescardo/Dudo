@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function WaitingPage() {
+function WaitingContent() {
   const [waitingCount, setWaitingCount] = useState(1);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
@@ -96,5 +96,26 @@ export default function WaitingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function WaitingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md text-center">
+            <h1 className="text-3xl font-bold mb-6 text-gray-800">
+              Loading...
+            </h1>
+            <div className="flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <WaitingContent />
+    </Suspense>
   );
 }
