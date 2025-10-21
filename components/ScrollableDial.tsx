@@ -308,7 +308,11 @@ export const ScrollableDial = forwardRef<HTMLDivElement, ScrollableDialProps>(
           style={{ touchAction: 'none' }}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onBlur={() => {
+            setIsFocused(false);
+            // Auto-commit pending value when focus is lost
+            commitPendingValue();
+          }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}

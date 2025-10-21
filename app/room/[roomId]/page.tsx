@@ -36,6 +36,7 @@ function RoomContent({ params }: { params: { roomId: string } }) {
   const [joined, setJoined] = useState(false);
   const [pub, setPub] = useState<any>(null);
   const [myDice, setMyDice] = useState<number[]>([]);
+  const myDiceRef = useRef<number[]>([]);
 
   const esRef = useRef<EventSource | null>(null);
 
@@ -47,6 +48,11 @@ function RoomContent({ params }: { params: { roomId: string } }) {
     });
   };
 
+  const requestDice = async () => {
+    // Send a dummy action to trigger dice sending
+    await call({ type: 'join', playerId, name: me?.name || 'Player' });
+  };
+
   useEffect(() => {
     if (!playerId) return;
     const es = new EventSource(
@@ -55,10 +61,33 @@ function RoomContent({ params }: { params: { roomId: string } }) {
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
-        if (msg.type === 'state') setPub(msg.state);
-        if (msg.type === 'dice' && msg.playerId === playerId)
+        if (msg.type === 'state') {
+          console.log('Received state update:', msg.state);
+          setPub(msg.state);
+          // Check if we should have dice but don't
+          const currentPlayer = msg.state.players?.find(
+            (p: any) => p.id === playerId
+          );
+          if (
+            currentPlayer &&
+            currentPlayer.diceCount > 0 &&
+            myDiceRef.current.length === 0
+          ) {
+            console.log(
+              'Player should have dice but myDice is empty, requesting dice...'
+            );
+            // Request dice by triggering a dummy action
+            setTimeout(() => requestDice(), 100);
+          }
+        }
+        if (msg.type === 'dice' && msg.playerId === playerId) {
+          console.log('Received dice for player', playerId, ':', msg.dice);
           setMyDice(msg.dice);
-      } catch {}
+          myDiceRef.current = msg.dice;
+        }
+      } catch (error) {
+        console.error('Error parsing SSE message:', error, ev.data);
+      }
     };
     es.onerror = () => {
       es.close();
@@ -155,7 +184,14 @@ function RoomContent({ params }: { params: { roomId: string } }) {
 
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4">
-      <h1 className="text-2xl font-semibold">Cachito — Room {roomId}</h1>
+      <h1 className="text-2xl font-semibold">
+        Cachito — Room {roomId}
+        {me && (
+          <span className="text-lg font-normal text-gray-600 ml-2">
+            Joined as {me.name}
+          </span>
+        )}
+      </h1>
 
       {!joined && (
         <div className="flex gap-2 items-end">
@@ -198,12 +234,26 @@ function RoomContent({ params }: { params: { roomId: string } }) {
                   className={`border p-2 rounded ${p.id === pub.currentTurn ? 'bg-yellow-50' : ''}`}
                 >
                   <div className="flex justify-between">
-                    <b>{p.name}</b>
+                    <div className="flex items-center gap-2">
+                      <b>{p.name}</b>
+                      {p.id === playerId ? (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          👤 Me
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          👥 Opponent
+                        </span>
+                      )}
+                    </div>
                     <span>{p.diceCount} dice</span>
                   </div>
-                  {p.id === playerId && myDice.length > 0 && (
-                    <Dice dice={myDice} />
-                  )}
+                  {p.id === playerId &&
+                    (myDice.length > 0 || myDiceRef.current.length > 0) && (
+                      <Dice
+                        dice={myDice.length > 0 ? myDice : myDiceRef.current}
+                      />
+                    )}
                 </li>
               ))}
             </ul>

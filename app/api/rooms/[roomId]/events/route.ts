@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { makeSubscriber, channels, loadState } from '@/lib/redis';
 import { safeId } from '@/lib/id';
+import { privateDice } from '@/lib/mask';
 
 export const runtime = 'nodejs'; // TCP needed for ioredis subscribe
 export const dynamic = 'force-dynamic';
@@ -45,12 +46,29 @@ export async function GET(
         try {
           // send initial snapshot
           const S = await loadState(roomId);
-          if (S)
+          if (S) {
+            // Send public state
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ type: 'state', state: { ...S, secret: undefined } })}\n\n`
               )
             );
+
+            // Send private dice if player has dice
+            const player = S.players.find((p) => p.id === playerId);
+            if (player && player.diceCount > 0) {
+              const diceMessage = privateDice(S, playerId);
+              console.log(
+                `Sending initial dice for player ${playerId}:`,
+                JSON.parse(diceMessage)
+              );
+              controller.enqueue(encoder.encode(`data: ${diceMessage}\n\n`));
+            } else {
+              console.log(
+                `Player ${playerId} has ${player?.diceCount || 0} dice, not sending private dice`
+              );
+            }
+          }
         } catch (loadError) {
           console.error('Error loading initial state:', loadError);
           // Continue without initial state - don't crash the stream
