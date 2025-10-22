@@ -2,7 +2,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'Cachito',
-  description: 'Peruvian Liar\'s Dice game',
+  description: "Peruvian Liar's Dice game",
   icons: {
     icon: '/dice-icon.svg',
   },

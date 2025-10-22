@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { makeSubscriber, channels, loadState } from '@/lib/redis';
 import { safeId } from '@/lib/id';
-import { privateDice } from '@/lib/mask';
+import { privateDice, allDice } from '@/lib/mask';
 
 export const runtime = 'nodejs'; // TCP needed for ioredis subscribe
 export const dynamic = 'force-dynamic';
@@ -54,19 +54,30 @@ export async function GET(
               )
             );
 
-            // Send private dice if player has dice
-            const player = S.players.find((p) => p.id === playerId);
-            if (player && player.diceCount > 0) {
-              const diceMessage = privateDice(S, playerId);
+            // Send dice info based on phase
+            if (S.phase === 'revealed') {
+              // During revealed phase, send all dice to everyone
+              const allDiceMessage = allDice(S);
               console.log(
-                `Sending initial dice for player ${playerId}:`,
-                JSON.parse(diceMessage)
+                'Sending all dice during revealed phase:',
+                JSON.parse(allDiceMessage)
               );
-              controller.enqueue(encoder.encode(`data: ${diceMessage}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${allDiceMessage}\n\n`));
             } else {
-              console.log(
-                `Player ${playerId} has ${player?.diceCount || 0} dice, not sending private dice`
-              );
+              // During normal play, send private dice if player has dice
+              const player = S.players.find((p) => p.id === playerId);
+              if (player && player.diceCount > 0) {
+                const diceMessage = privateDice(S, playerId);
+                console.log(
+                  `Sending initial dice for player ${playerId}:`,
+                  JSON.parse(diceMessage)
+                );
+                controller.enqueue(encoder.encode(`data: ${diceMessage}\n\n`));
+              } else {
+                console.log(
+                  `Player ${playerId} has ${player?.diceCount || 0} dice, not sending private dice`
+                );
+              }
             }
           }
         } catch (loadError) {

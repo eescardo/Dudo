@@ -46,9 +46,15 @@ export function startRound(S: FullState) {
       S.secret.diceByPlayer[p.id] = dice;
     }
   }
-  // first turn = previous loser if stored in lastAction else first non-zero
+  // first turn = nextRoundStarter if set, else first non-zero
   const alive = S.players.filter((p) => p.diceCount > 0);
-  S.currentTurn = alive[0]?.id ?? null;
+  if (S.nextRoundStarter && alive.find((p) => p.id === S.nextRoundStarter)) {
+    S.currentTurn = S.nextRoundStarter;
+  } else {
+    S.currentTurn = alive[0]?.id ?? null;
+  }
+  // Clear the nextRoundStarter
+  S.nextRoundStarter = undefined;
   S.phase = 'bidding';
 }
 
@@ -110,7 +116,10 @@ export function callDudo(S: FullState, callerId: string) {
   const loserId = bidderWrong ? bidderId : callerId;
   applyLoss(S, loserId, 1);
   S.lastAction = `dudo:${bidderWrong ? 'bidder_loses' : 'caller_loses'}:${actual}`;
-  prepareNextRound(S, loserId);
+  // Store who should start next round
+  S.nextRoundStarter = loserId;
+  // Move to revealed phase to show all dice
+  S.phase = 'revealed';
 }
 
 export function callCalza(S: FullState, callerId: string) {
@@ -122,11 +131,11 @@ export function callCalza(S: FullState, callerId: string) {
   if (exact) applyGain(S, callerId, S.rules.calzaGain);
   else applyLoss(S, callerId, S.rules.calzaPenalty);
   S.lastAction = `calza:${exact ? 'exact' : 'wrong'}:${actual}`;
-  // Previous bidder never penalized per calza rule
-  const loserId = exact ? null : callerId;
-  // Next round starts with: loser if any, else previous bidder
-  const startId = loserId ?? previousAlive(S, S.currentTurn!);
-  prepareNextRound(S, startId);
+  // Next round starts with: winner if successful, loser if unsuccessful
+  // In both cases, the caller starts the next round (winner gets dice, loser loses dice)
+  S.nextRoundStarter = callerId;
+  // Move to revealed phase to show all dice
+  S.phase = 'revealed';
 }
 
 function applyLoss(S: FullState, id: string, n: number) {
@@ -158,15 +167,7 @@ function maybeGameOver(S: FullState) {
   }
 }
 
-function prepareNextRound(S: FullState, nextStartId: string) {
-  maybeGameOver(S);
-  if (S.phase === 'gameover') return;
-  // assign next starter and reset
-  S.currentTurn = nextStartId;
-  S.currentBid = null;
-  // Immediately roll for next round
-  startRound(S);
-}
+// prepareNextRound function removed - now handled by startRound with nextRoundStarter
 
 export function toPublic(S: FullState): PublicState {
   const { secret, ...pub } = S;

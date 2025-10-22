@@ -16,7 +16,7 @@ import {
   callCalza,
   toPublic,
 } from '@/lib/game';
-import { privateDice } from '@/lib/mask';
+import { privateDice, allDice } from '@/lib/mask';
 import type { ClientAction, FullState } from '@/lib/types';
 
 export const runtime = 'nodejs'; // need TCP for redis subscriber in sibling route
@@ -72,7 +72,13 @@ export async function POST(
         break;
       }
       case 'start': {
-        if (S.phase === 'lobby' || S.phase === 'gameover') startRound(S);
+        if (
+          S.phase === 'lobby' ||
+          S.phase === 'gameover' ||
+          S.phase === 'revealed'
+        ) {
+          startRound(S);
+        }
         break;
       }
       case 'bid': {
@@ -94,14 +100,21 @@ export async function POST(
 
   await saveState(roomId, S);
 
-  // Publish masked state to room and private dice to each player
+  // Publish masked state to room and dice info to each player
   await publishPublic(
     roomId,
     JSON.stringify({ type: 'state', state: toPublic(S) })
   );
-  for (const p of S.players) {
-    if (p.diceCount > 0) {
-      await publishPrivate(roomId, p.id, privateDice(S, p.id));
+
+  // During revealed phase, show all dice to everyone
+  if (S.phase === 'revealed') {
+    await publishPublic(roomId, allDice(S));
+  } else {
+    // During normal play, send private dice to each player
+    for (const p of S.players) {
+      if (p.diceCount > 0) {
+        await publishPrivate(roomId, p.id, privateDice(S, p.id));
+      }
     }
   }
 

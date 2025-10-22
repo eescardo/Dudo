@@ -16,7 +16,13 @@ export type Rules = {
   maxDice: number; // default 5
 };
 
-export type Phase = 'lobby' | 'rolling' | 'bidding' | 'reveal' | 'gameover';
+export type Phase =
+  | 'lobby'
+  | 'rolling'
+  | 'bidding'
+  | 'reveal'
+  | 'revealed'
+  | 'gameover';
 
 export type PublicState = {
   roomId: string;
@@ -28,6 +34,7 @@ export type PublicState = {
   round: number;
   lastAction?: string; // textual summary
   winnerId?: string;
+  nextRoundStarter?: string; // playerId who should start next round
 };
 
 export type FullState = PublicState & {

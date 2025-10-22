@@ -18,3 +18,10 @@ export function privateDice(S: FullState, playerId: string) {
     dice: S.secret.diceByPlayer[playerId] ?? [],
   });
 }
+
+export function allDice(S: FullState) {
+  return JSON.stringify({
+    type: 'allDice',
+    diceByPlayer: S.secret.diceByPlayer,
+  });
+}

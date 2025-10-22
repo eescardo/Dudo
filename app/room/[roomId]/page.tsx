@@ -36,7 +36,9 @@ function RoomContent({ params }: { params: { roomId: string } }) {
   const [joined, setJoined] = useState(false);
   const [pub, setPub] = useState<any>(null);
   const [myDice, setMyDice] = useState<number[]>([]);
+  const [allDice, setAllDice] = useState<Record<string, number[]> | null>(null);
   const myDiceRef = useRef<number[]>([]);
+  const diceRequestedRef = useRef(false);
 
   const esRef = useRef<EventSource | null>(null);
 
@@ -49,6 +51,8 @@ function RoomContent({ params }: { params: { roomId: string } }) {
   };
 
   const requestDice = async () => {
+    // Only request dice if we're not in revealed phase
+    if (pub?.phase === 'revealed') return;
     // Send a dummy action to trigger dice sending
     await call({ type: 'join', playerId, name: me?.name || 'Player' });
   };
@@ -64,18 +68,27 @@ function RoomContent({ params }: { params: { roomId: string } }) {
         if (msg.type === 'state') {
           console.log('Received state update:', msg.state);
           setPub(msg.state);
-          // Check if we should have dice but don't
+          // Clear all dice when phase changes away from revealed
+          if (msg.state.phase !== 'revealed') {
+            setAllDice(null);
+          }
+          // Reset dice request flag when phase changes
+          diceRequestedRef.current = false;
+          // Only request dice if we're in bidding phase and should have dice but don't
           const currentPlayer = msg.state.players?.find(
             (p: any) => p.id === playerId
           );
           if (
             currentPlayer &&
             currentPlayer.diceCount > 0 &&
-            myDiceRef.current.length === 0
+            myDiceRef.current.length === 0 &&
+            msg.state.phase === 'bidding' &&
+            !diceRequestedRef.current
           ) {
             console.log(
-              'Player should have dice but myDice is empty, requesting dice...'
+              'Player should have dice but myDice is empty during bidding, requesting dice...'
             );
+            diceRequestedRef.current = true;
             // Request dice by triggering a dummy action
             setTimeout(() => requestDice(), 100);
           }
@@ -84,6 +97,11 @@ function RoomContent({ params }: { params: { roomId: string } }) {
           console.log('Received dice for player', playerId, ':', msg.dice);
           setMyDice(msg.dice);
           myDiceRef.current = msg.dice;
+          diceRequestedRef.current = false; // Reset the flag when we receive dice
+        }
+        if (msg.type === 'allDice') {
+          console.log('Received all dice:', msg.diceByPlayer);
+          setAllDice(msg.diceByPlayer);
         }
       } catch (error) {
         console.error('Error parsing SSE message:', error, ev.data);
@@ -182,6 +200,57 @@ function RoomContent({ params }: { params: { roomId: string } }) {
     return action;
   };
 
+  const getPlayerHighlightClass = (playerId: string) => {
+    if (pub?.phase !== 'revealed') {
+      // Normal turn highlighting
+      return playerId === pub?.currentTurn ? 'bg-yellow-50' : '';
+    }
+
+    // During revealed phase, highlight based on last action
+    if (!pub?.lastAction) return '';
+
+    const lastAction = pub.lastAction;
+
+    // Parse calza results
+    const calzaMatch = lastAction.match(/calza:(exact|wrong):(\d+)/);
+    if (calzaMatch) {
+      const [, result] = calzaMatch;
+      if (result === 'exact') {
+        // Successful calza - highlight the caller (current turn is the caller)
+        return playerId === pub.currentTurn
+          ? 'bg-green-50 border-green-200'
+          : '';
+      } else {
+        // Unsuccessful calza - highlight the caller (current turn is the caller)
+        return playerId === pub.currentTurn ? 'bg-red-50 border-red-200' : '';
+      }
+    }
+
+    // Parse dudo results
+    const dudoMatch = lastAction.match(
+      /dudo:(bidder_loses|caller_loses):(\d+)/
+    );
+    if (dudoMatch) {
+      const [, result] = dudoMatch;
+      if (result === 'bidder_loses') {
+        // Bidder loses - find the bidder (previous player)
+        const alive = pub.players.filter((p: any) => p.diceCount > 0);
+        const currentIdx = alive.findIndex(
+          (p: any) => p.id === pub.currentTurn
+        );
+        const bidderId =
+          alive[(currentIdx - 1 + alive.length) % alive.length]?.id;
+        return playerId === bidderId ? 'bg-red-50 border-red-200' : '';
+      } else {
+        // Caller loses - highlight the caller (current turn is the caller)
+        return playerId === pub.currentTurn ? 'bg-red-50 border-red-200' : '';
+      }
+    }
+
+    // Default highlighting for other cases
+    return playerId === pub?.currentTurn ? 'bg-yellow-50' : '';
+  };
+
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4">
       <h1 className="text-2xl font-semibold">
@@ -231,7 +300,7 @@ function RoomContent({ params }: { params: { roomId: string } }) {
               {pub.players.map((p: any) => (
                 <li
                   key={p.id}
-                  className={`border p-2 rounded ${p.id === pub.currentTurn ? 'bg-yellow-50' : ''}`}
+                  className={`border p-2 rounded ${getPlayerHighlightClass(p.id)}`}
                 >
                   <div className="flex justify-between">
                     <div className="flex items-center gap-2">
@@ -248,12 +317,17 @@ function RoomContent({ params }: { params: { roomId: string } }) {
                     </div>
                     <span>{p.diceCount} dice</span>
                   </div>
-                  {p.id === playerId &&
+                  {/* Show dice based on phase */}
+                  {pub.phase === 'revealed' && allDice && allDice[p.id] ? (
+                    <Dice dice={allDice[p.id]} />
+                  ) : (
+                    p.id === playerId &&
                     (myDice.length > 0 || myDiceRef.current.length > 0) && (
                       <Dice
                         dice={myDice.length > 0 ? myDice : myDiceRef.current}
                       />
-                    )}
+                    )
+                  )}
                 </li>
               ))}
             </ul>
@@ -264,7 +338,11 @@ function RoomContent({ params }: { params: { roomId: string } }) {
               className="border px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={start}
             >
-              Start / Next Round
+              {pub.phase === 'revealed'
+                ? 'Next Round'
+                : pub.phase === 'lobby'
+                  ? 'Start Game'
+                  : 'Start / Next Round'}
             </button>
             <button
               className="border px-3 py-1 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
